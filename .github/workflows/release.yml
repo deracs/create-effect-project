@@ -1,0 +1,96 @@
+name: Release
+
+# Publishing is deliberately manual-ish: it runs only for an annotated `v*` tag,
+# never on a branch push. Pushing a tag is the act of releasing.
+on:
+  push:
+    tags: ['v*']
+  # Lets you rehearse the whole job — including `npm publish --dry-run` — without
+  # a tag and without publishing anything.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build, test and pack, but do not publish'
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    # Required for npm provenance, which cryptographically links the published
+    # tarball to this workflow run and this commit.
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: npm ci
+
+      # The tag is the source of truth for what is being released; a tag that
+      # disagrees with package.json means someone tagged the wrong commit. Fail
+      # before publishing rather than shipping a mislabelled version.
+      - name: Check the tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="$(node -p "require('./package.json').version")"
+          echo "tag=$tag manifest=$manifest"
+          if [ "$tag" != "$manifest" ]; then
+            echo "::error::tag v$tag does not match package.json version $manifest"
+            exit 1
+          fi
+
+      # Refuse to republish a version that already exists, which npm would reject
+      # anyway — but this fails in seconds instead of after the full test run.
+      - name: Check the version is unpublished
+        run: |
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::error::$name@$version is already published"
+            exit 1
+          fi
+          echo "$name@$version is unpublished"
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # The gate that matters for a release: proves the tarball this job is about
+      # to publish actually installs and runs.
+      - name: Packaged install smoke test
+        run: npm run test:pack
+
+      - name: End-to-end tests (both templates, node + bun)
+        run: npm run test:e2e
+
+      - name: Publish (dry run)
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        run: npm publish --dry-run --provenance --access public
+
+      - name: Publish
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

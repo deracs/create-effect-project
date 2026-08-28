@@ -1,0 +1,27 @@
+{
+  "name": "{{name}}",
+  "module": "src/worker.ts",
+  "type": "module",
+  "private": true,
+  "engines": { "bun": ">=1.3.0" },
+  "scripts": {
+    "dev": "alchemy dev",
+    "plan": "alchemy plan",
+    "deploy": "alchemy deploy",
+    "destroy": "alchemy destroy",
+    "tail": "alchemy tail",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "client": "bun src/client.ts"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.0.0-rc.112",
+    "alchemy": "2.0.0-beta.74",
+    "effect": "4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260827.0",
+    "@types/bun": "^1.4.0",
+    "typescript": "7.0.2"
+  }
+}

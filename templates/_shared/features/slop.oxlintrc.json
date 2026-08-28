@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/ban-ts-comment": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-non-null-asserted-nullish-coalescing": "error",
+    "typescript/no-empty-interface": "error",
+    "typescript/no-empty-object-type": "error",
+    "no-console": "error",
+    "no-empty": "error",
+    "no-empty-function": "error",
+    "no-useless-return": "error",
+    "no-useless-computed-key": "error",
+    "no-else-return": "error",
+    "no-lonely-if": "error",
+    "no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
+    "require-await": "error",
+    "unicorn/no-useless-promise-resolve-reject": "error",
+    "unicorn/no-useless-switch-case": "error",
+    "unicorn/no-useless-error-capture-stack-trace": "error",
+    "unicorn/no-useless-collection-argument": "error",
+    "unicorn/no-unnecessary-array-flat-depth": "error",
+    "unicorn/no-await-expression-member": "error"
+  }
+}

@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same ref makes an in-flight run redundant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: typecheck + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The published bin is a bundle, so `engines` is only >=20 — but the repo's
+      # own sources and the e2e run unbundled TypeScript, which needs a Node that
+      # strips types without a flag (22.18+).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Required by the e2e's bun variant, which scaffolds, installs and boots a
+      # real bun project. Without bun that case skips rather than fails, so the
+      # guard below asserts it actually ran.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Report toolchain
+        run: |
+          echo "node $(node --version)"
+          echo "npm  $(npm --version)"
+          echo "bun  $(bun --version)"
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # Builds the bundle, packs the real tarball, installs it as a consumer and
+      # runs the installed binary. This is the only check that can catch a defect
+      # which only exists once published — notably that Node refuses to strip
+      # types under node_modules, which made an earlier `bin: src/bin.ts` broken
+      # for every user while every other test stayed green.
+      - name: Packaged install smoke test
+        run: npm run test:pack
+
+      # Scaffolds, installs and boots real projects on both runtimes — the only
+      # test proving the emitted projects work. Slow: two real installs.
+      - name: End-to-end tests (both templates, node + bun)
+        run: npm run test:e2e -- --reporter=default --reporter=json --outputFile.json=e2e-results.json
+
+      # A green e2e is not enough: if bun were missing, its case would skip and
+      # the suite would still pass while covering only node. Assert on the
+      # reporter's structured counts rather than scraping console output, which
+      # carries ANSI colour codes in CI.
+      - name: Assert every e2e case ran
+        if: always()
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs"
+            const r = JSON.parse(readFileSync("e2e-results.json", "utf8"))
+            const { numPassedTests: passed, numPendingTests: skipped, numFailedTests: failed } = r
+            console.log(`e2e: ${passed} passed, ${skipped} skipped, ${failed} failed`)
+            if (passed !== 9 || skipped !== 0 || failed !== 0) {
+              console.log(
+                "::error::expected exactly 9 passing e2e tests (basic + http-server + alchemy-http " +
+                "+ alchemy-rpc on node + bun, plus the node --slop case) with none skipped — " +
+                `got ${passed} passed, ${skipped} skipped, ${failed} failed`
+              )
+              process.exit(1)
+            }
+          '
+
+      - name: Upload e2e results on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-results
+          path: e2e-results.json
+          if-no-files-found: ignore

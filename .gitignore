@@ -1,0 +1,9 @@
+node_modules
+dist
+e2e-results.json
+*.tsbuildinfo
+.DS_Store
+
+# Internal process artifacts — not part of the project
+.superpowers/
+docs/superpowers/

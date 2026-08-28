@@ -1,0 +1,31 @@
+{
+  "name": "create-effect-project",
+  "version": "0.1.0",
+  "description": "Scaffold an Effect v4 project — an HttpApi server, or a plain program — on Node or Bun",
+  "keywords": ["effect", "effect-ts", "scaffold", "template", "cli", "starter"],
+  "license": "MIT",
+  "type": "module",
+  "bin": { "create-effect-project": "./dist/bin.js" },
+  "files": ["dist", "templates"],
+  "//": "Consumers get the bundle and the templates. `engines` is the floor for RUNNING the CLI; the projects it generates carry their own, higher floor in their own manifests.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "esbuild src/bin.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bin.js --log-level=warning --banner:js=\"import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "CEA_E2E=1 vitest run test/e2e.test.ts --testTimeout=600000",
+    "test:pack": "node scripts/smoke-pack.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build && npm run test:pack"
+  },
+  "//devDependencies": "effect and @effect/platform-node are devDependencies on purpose: they are bundled into dist/bin.js, so a consumer installs zero runtime dependencies.",
+  "devDependencies": {
+    "@effect/platform-node": "4.0.0-rc.112",
+    "@effect/vitest": "4.0.0-rc.112",
+    "@types/node": "^26.4.0",
+    "effect": "4.0.0-rc.112",
+    "esbuild": "^0.25.0",
+    "typescript": "7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

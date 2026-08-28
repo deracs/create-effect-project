@@ -1,0 +1,22 @@
+{
+  "name": "{{name}}",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "engines": { "bun": ">=1.3.0" },
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "client": "bun src/client.ts"
+  },
+  "dependencies": {
+    "effect": "4.0.0-rc.112",
+    "@effect/platform-bun": "4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "7.0.2"
+  }
+}

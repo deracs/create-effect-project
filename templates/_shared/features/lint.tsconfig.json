@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "globalDate": "warning",
+          "globalFetch": "warning",
+          "globalRandom": "warning",
+          "globalTimers": "warning",
+          "processEnv": "warning"
+        }
+      }
+    ]
+  }
+}
