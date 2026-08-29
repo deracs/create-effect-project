@@ -19,16 +19,18 @@ files document — a project installed with pnpm is documented `pnpm run dev`, n
 | `--template` | What you get |
 | --- | --- |
 | `http-server` | A schema-first `HttpApi`: one definition produces the server routes, an OpenAPI document at `/openapi.json`, Scalar docs at `/docs`, and a typed client checked against the server at compile time |
+| `fullstack` | The same `HttpApi` behind **both** a server and a server-rendered React UI: a workspace where `apps/web` (TanStack Start) drives its data through Effect's own reactivity, hydrated from SSR |
 | `basic` | A runnable program — a `Context.Service` with an in-memory layer, a branded id, a typed error, and a `main` that handles it. No server |
 | `alchemy-http` | The **same** `HttpApi`, deployed to a Cloudflare Worker with [Alchemy](https://alchemy.run) — infrastructure as Effects, no `wrangler.toml` |
 | `alchemy-rpc` | The same Notes service exposed as typed **RPC** on a Worker — typed errors cross the wire as themselves, no status codes |
 
-All four get the same optional features and both runtimes. No build step: Node and Bun execute
-TypeScript directly.
+All five get the same optional features and both runtimes. No build step: Node and Bun execute
+TypeScript directly — except `fullstack`'s web app, which Vite builds.
 
-Three of them serve the same Notes domain. `src/domain/Note.ts` and `src/server/Notes.ts` come
-from `templates/_shared/notes/` and are emitted byte-identically by all three, so the business
-logic is one file and only the transport adapter differs. `http-server` and `alchemy-http` go
+Four of them serve the same Notes domain. `domain/Note.ts` and `server/Notes.ts` come from
+`templates/_shared/notes/` and are emitted byte-identically by all four — under `src/` for the
+single-package templates and under `apps/api/src/` for `fullstack` — so the business logic is one
+file and only the transport adapter differs. `http-server` and `alchemy-http` go
 further and share the whole `HttpApi` surface from `templates/_shared/httpapi/`; their only
 difference is the entrypoint:
 

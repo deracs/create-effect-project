@@ -1,0 +1,27 @@
+{
+  "name": "@{{name}}/api",
+  "type": "module",
+  "private": true,
+  "//": "`exports` is what lets the web app import the API definition — and only the definition. The server and its handlers stay unreachable from the browser bundle.",
+  "exports": {
+    "./api": "./src/api/Api.ts"
+  },
+  "engines": { "node": ">=22.6.0" },
+  "scripts": {
+    "dev": "node --experimental-strip-types --watch src/index.ts",
+    "start": "node --experimental-strip-types src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "client": "node --experimental-strip-types src/client.ts"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-rc.112",
+    "effect": "4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.0-rc.112",
+    "@types/node": "^26.4.0",
+    "typescript": "7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

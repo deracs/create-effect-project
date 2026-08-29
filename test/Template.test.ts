@@ -131,7 +131,7 @@ describe("Template.render", () => {
     const { effect } = run({ otel: true })
     return Effect.gen(function*() {
       const written = yield* effect
-      const matches = written.filter((p) => p === "src/observability.ts")
+      const matches = written.filter((p) => p.endsWith("src/observability.ts"))
       assert.strictEqual(matches.length, 1)
     })
   })
@@ -140,7 +140,7 @@ describe("Template.render", () => {
     const { effect } = run({ otel: false })
     return Effect.gen(function*() {
       const written = yield* effect
-      assert.strictEqual(written.filter((p) => p === "src/observability.ts").length, 1)
+      assert.strictEqual(written.filter((p) => p.endsWith("src/observability.ts")).length, 1)
     })
   })
 
@@ -373,12 +373,12 @@ describe("Template.render", () => {
         // an unimported stub is worse than nothing.
         const expected = template.supportsOtel ? 1 : 0
         assert.strictEqual(
-          on.filter((p) => p === "src/observability.ts").length,
+          on.filter((p) => p.endsWith("src/observability.ts")).length,
           expected,
           `${id} (supportsOtel=${template.supportsOtel}) emitted the wrong number of observability.ts with otel on`
         )
         assert.strictEqual(
-          off.filter((p) => p === "src/observability.ts").length,
+          off.filter((p) => p.endsWith("src/observability.ts")).length,
           expected,
           `${id} (supportsOtel=${template.supportsOtel}) emitted the wrong number of observability.ts with otel off`
         )
@@ -432,10 +432,10 @@ describe("Template registry", () => {
         .filter((file) => file.when === undefined || file.when(selection({ otel: true })))
         .map((file) => file.to)
       assert.strictEqual(
-        emitted.includes("src/observability.ts"),
+        emitted.some((path) => path.endsWith("src/observability.ts")),
         template.supportsOtel,
         `${id} claims supportsOtel=${template.supportsOtel} but emits observability.ts=${
-          emitted.includes("src/observability.ts")
+          emitted.some((path) => path.endsWith("src/observability.ts"))
         }`
       )
 

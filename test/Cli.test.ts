@@ -257,7 +257,7 @@ describe("Cli", () => {
     return Effect.gen(function*() {
       yield* runWith(["--name", "my-app", "--runtime", "node", "--pm", "npm"])
       const written = journal.writes.map((path) => path.replace("my-app/", ""))
-      assert.include(written, "src/main.ts")
+      assert.include(written, "apps/web/src/router.tsx")
       assert.notInclude(written, "src/index.ts")
     }).pipe(Effect.provide(layer))
   })

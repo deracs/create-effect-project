@@ -1,0 +1,7 @@
+node_modules
+dist
+.output
+.vite
+*.tsbuildinfo
+.DS_Store
+apps/web/src/routeTree.gen.ts

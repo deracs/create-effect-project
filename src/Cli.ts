@@ -192,6 +192,10 @@ export const root = Command.make(
       description: "Scaffold an HttpApi server and client on bun"
     },
     {
+      command: "create-effect-project --name my-app --template fullstack --runtime bun",
+      description: "Scaffold an HttpApi server and a server-rendered React UI that shares its types"
+    },
+    {
       command: "create-effect-project --name my-app --template basic --runtime node --pm pnpm",
       description: "Scaffold a plain program and install with pnpm, without prompting"
     },

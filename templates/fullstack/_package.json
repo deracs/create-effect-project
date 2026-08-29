@@ -1,0 +1,6 @@
+{
+  "name": "{{name}}",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/*"]
+}

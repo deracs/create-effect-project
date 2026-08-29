@@ -13,7 +13,7 @@ export type Runtime = typeof runtimes[number]
  * Adding one is a directory under `templates/`, an entry here, and an entry in
  * `all` — optional features and both runtimes then apply to it unchanged.
  */
-export const ids = ["http-server", "basic", "alchemy-http", "alchemy-rpc"] as const
+export const ids = ["http-server", "fullstack", "basic", "alchemy-http", "alchemy-rpc"] as const
 
 export type Id = typeof ids[number]
 
@@ -80,6 +80,15 @@ export interface Template {
 }
 
 const forRuntime = (runtime: Runtime) => (selection: Selection) => selection.runtime === runtime
+
+/**
+ * Re-roots a file list under a subdirectory of the generated project. Lets a
+ * workspace template reuse the same shared sources as the single-package ones,
+ * emitting them at `apps/api/src/...` instead of `src/...`, so the Notes domain
+ * stays byte-identical across every template that serves it.
+ */
+const under = (base: string, files: ReadonlyArray<TemplateFile>): ReadonlyArray<TemplateFile> =>
+  files.map((file) => ({ ...file, to: `${base}/${file.to}` }))
 
 /** Files every template receives, whatever it targets. */
 const sharedFiles: ReadonlyArray<TemplateFile> = [
@@ -231,6 +240,203 @@ export const httpServer: Template = {
   nextSteps: (selection) => [
     `${runCmd(selection.packageManager)} dev      # then open http://localhost:3000/docs`,
     `${runCmd(selection.packageManager)} client   # in another terminal`
+  ]
+}
+
+/**
+ * The API half of the full-stack template: the same sources `http-server`
+ * emits, minus the two files that genuinely differ. `server/http.ts` and
+ * `config.ts` are template-owned here because this server has a browser on
+ * another origin talking to it, so it needs CORS and an origin to scope it to —
+ * which a standalone API has no reason to carry.
+ */
+const fullstackApiFiles: ReadonlyArray<TemplateFile> = [
+  { from: "_shared/notes/domain/Note.ts", to: "src/domain/Note.ts", substitute: false },
+  { from: "_shared/notes/Notes.ts", to: "src/server/Notes.ts", substitute: false },
+  { from: "_shared/httpapi/api/Api.ts", to: "src/api/Api.ts", substitute: false },
+  { from: "_shared/httpapi/api/System.ts", to: "src/api/System.ts", substitute: false },
+  { from: "_shared/httpapi/api/Notes.ts", to: "src/api/Notes.ts", substitute: false },
+  { from: "_shared/httpapi/server/Notes/http.ts", to: "src/server/Notes/http.ts", substitute: false },
+  { from: "_shared/httpapi/client/ApiClient.ts", to: "src/client/ApiClient.ts", substitute: false },
+  { from: "fullstack/apps/api/http.ts", to: "src/server/http.ts", substitute: false },
+  { from: "fullstack/apps/api/config.ts", to: "src/config.ts", substitute: false }
+]
+
+/**
+ * The web half: a TanStack Start app whose data comes from `AtomHttpApi` atoms
+ * built on the very same `Api` the server implements, server-rendered and
+ * hydrated so the first paint carries its data.
+ */
+const fullstackWebFiles: ReadonlyArray<TemplateFile> = [
+  { from: "fullstack/apps/web/vite.config.ts", to: "vite.config.ts", substitute: false },
+  { from: "fullstack/apps/web/src/router.tsx", to: "src/router.tsx", substitute: false },
+  { from: "fullstack/apps/web/src/styles.css", to: "src/styles.css", substitute: false },
+  { from: "fullstack/apps/web/src/routes/__root.tsx", to: "src/routes/__root.tsx", substitute: false },
+  { from: "fullstack/apps/web/src/routes/index.tsx", to: "src/routes/index.tsx", substitute: false },
+  // Substituted: imports the API definition as `@{{name}}/api/api`.
+  { from: "fullstack/apps/web/src/atoms/NotesApi.ts", to: "src/atoms/NotesApi.ts", substitute: true }
+]
+
+/**
+ * One `HttpApi` definition behind both a server and a browser. The frontend
+ * imports it through the API package's `exports`, so the contract is checked at
+ * compile time on both sides, and its data comes from Effect's own reactivity
+ * rather than a separate fetching library.
+ *
+ * A workspace rather than one package, because the two halves need genuinely
+ * different TypeScript configuration — `types: ["bun"]` against
+ * `lib: ["DOM"]` — and cannot share a manifest.
+ */
+export const fullstack: Template = {
+  id: "fullstack",
+  title: "Full-stack — the same HttpApi with a server-rendered React UI",
+  description: "An HttpApi server plus a TanStack Start frontend driven by Effect atoms",
+  supportsOtel: true,
+  files: [
+    // Workspace root.
+    { from: "fullstack/_package.json", to: "package.json", substitute: true },
+    { from: "fullstack/_tsconfig.json", to: "tsconfig.json", substitute: false },
+    { from: "fullstack/README.md", to: "README.md", substitute: true },
+    { from: "fullstack/_gitignore", to: ".gitignore", substitute: false },
+    // npm, yarn and bun read `workspaces` from the root manifest; pnpm needs its
+    // own file and ignores that field.
+    {
+      from: "fullstack/_pnpm-workspace.yaml",
+      to: "pnpm-workspace.yaml",
+      substitute: false,
+      when: (selection) => selection.packageManager === "pnpm"
+    },
+
+    ...under("apps/api", fullstackApiFiles),
+    ...under("apps/api", observabilityFiles),
+    ...under("apps/web", fullstackWebFiles),
+
+    // The API entrypoint, client demo and handler test are the same as
+    // `http-server`'s — the server does not change because a browser talks to it.
+    ...under("apps/api", [
+      {
+        from: "http-server/runtime/node/index.ts",
+        to: "src/index.ts",
+        substitute: true,
+        when: forRuntime("node")
+      },
+      {
+        from: "http-server/runtime/node/client.ts",
+        to: "src/client.ts",
+        substitute: true,
+        when: forRuntime("node")
+      },
+      {
+        from: "http-server/runtime/node/http.test.ts",
+        to: "src/server/Notes/http.test.ts",
+        substitute: false,
+        when: forRuntime("node")
+      },
+      {
+        from: "http-server/runtime/bun/index.ts",
+        to: "src/index.ts",
+        substitute: true,
+        when: forRuntime("bun")
+      },
+      {
+        from: "http-server/runtime/bun/client.ts",
+        to: "src/client.ts",
+        substitute: true,
+        when: forRuntime("bun")
+      },
+      {
+        from: "http-server/runtime/bun/http.test.ts",
+        to: "src/server/Notes/http.test.ts",
+        substitute: false,
+        when: forRuntime("bun")
+      },
+
+      // Manifests and tsconfigs are template-owned: this API is a workspace
+      // member with an `exports` entry, not a standalone project.
+      {
+        from: "fullstack/apps/api/runtime/node/_package.json",
+        to: "package.json",
+        substitute: true,
+        when: forRuntime("node")
+      },
+      {
+        from: "fullstack/apps/api/runtime/node/_tsconfig.json",
+        to: "tsconfig.json",
+        substitute: false,
+        when: forRuntime("node")
+      },
+      {
+        from: "fullstack/apps/api/runtime/bun/_package.json",
+        to: "package.json",
+        substitute: true,
+        when: forRuntime("bun")
+      },
+      {
+        from: "fullstack/apps/api/runtime/bun/_tsconfig.json",
+        to: "tsconfig.json",
+        substitute: false,
+        when: forRuntime("bun")
+      }
+    ]),
+
+    // The web app differs by runtime only in its test runner: `bun:test` under
+    // bun, vitest under node.
+    ...under("apps/web", [
+      {
+        from: "fullstack/apps/web/runtime/node/NotesApi.test.ts",
+        to: "src/atoms/NotesApi.test.ts",
+        substitute: true,
+        when: forRuntime("node")
+      },
+      {
+        from: "fullstack/apps/web/runtime/node/_package.json",
+        to: "package.json",
+        substitute: true,
+        when: forRuntime("node")
+      },
+      {
+        from: "fullstack/apps/web/runtime/node/_tsconfig.json",
+        to: "tsconfig.json",
+        substitute: false,
+        when: forRuntime("node")
+      },
+      {
+        from: "fullstack/apps/web/runtime/bun/NotesApi.test.ts",
+        to: "src/atoms/NotesApi.test.ts",
+        substitute: true,
+        when: forRuntime("bun")
+      },
+      {
+        from: "fullstack/apps/web/runtime/bun/_package.json",
+        to: "package.json",
+        substitute: true,
+        when: forRuntime("bun")
+      },
+      {
+        from: "fullstack/apps/web/runtime/bun/_tsconfig.json",
+        to: "tsconfig.json",
+        substitute: false,
+        when: forRuntime("bun")
+      }
+    ]),
+
+    {
+      from: "_shared/features/_oxlintrc.json",
+      to: ".oxlintrc.json",
+      substitute: false,
+      when: (selection) => selection.lint
+    }
+  ],
+  // The shared lint patch scripts `oxlint src`, which is not where the sources
+  // live here — this one lints `apps` instead. Otherwise identical.
+  patches: [
+    { from: "fullstack/lint.package.json", to: "package.json", when: (s) => s.lint },
+    { from: "_shared/features/lint.tsconfig.json", to: "tsconfig.json", when: (s) => s.lint },
+    { from: "_shared/features/slop.oxlintrc.json", to: ".oxlintrc.json", when: (s) => s.lint && s.slop }
+  ],
+  nextSteps: (selection) => [
+    `cd apps/api && ${runCmd(selection.packageManager)} dev   # http://localhost:3000/docs`,
+    `cd apps/web && ${runCmd(selection.packageManager)} dev   # http://localhost:3001`
   ]
 }
 
@@ -465,6 +671,7 @@ export const alchemyRpc: Template = {
  */
 export const all: Record<Id, Template> = {
   "http-server": httpServer,
+  fullstack,
   basic,
   "alchemy-http": alchemyHttp,
   "alchemy-rpc": alchemyRpc
@@ -520,6 +727,13 @@ export const render = (options: {
       raw
         .replaceAll("{{name}}", options.projectName)
         .replaceAll("{{runCmd}}", runCmd(options.selection.packageManager))
+        // Workspace members are depended on by name. npm resolves that from the
+        // manifest's `workspaces` field and does not understand the `workspace:`
+        // protocol; the other three do, and are explicit about it.
+        .replaceAll(
+          "{{workspaceVersion}}",
+          options.selection.packageManager === "npm" ? "*" : "workspace:*"
+        )
 
     for (const file of options.template.files) {
       if (file.when !== undefined && !file.when(options.selection)) continue
