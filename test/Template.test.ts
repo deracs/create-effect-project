@@ -499,6 +499,41 @@ describe("Template tables against the tree on disk", () => {
     }
   })
 
+it("installs every TypeScript plugin the lint patch registers", () => {
+    // `lint.tsconfig.json` registers @effect/language-service as a plugin, but a
+    // plugin only loads if something actually depends on it — and a plugin that
+    // resolves to nothing fails silently: the editor simply shows no Effect
+    // diagnostics. Nothing else catches this. `typecheck` stays green because
+    // `effect-tsgo patch` patches tsc itself, so the CLI, the e2e and every
+    // generated test suite pass either way.
+    const lintOn = selection({ lint: true })
+
+    for (const id of Template.ids) {
+      const template = Template.byId(id)
+      const patchFor = (target: string) =>
+        template.patches.find((patch) => patch.to === target && patch.when(lintOn))
+
+      const tsconfigPatch = patchFor("tsconfig.json")
+      const manifestPatch = patchFor("package.json")
+      assert.isDefined(tsconfigPatch, `${id} has no lint patch for tsconfig.json`)
+      assert.isDefined(manifestPatch, `${id} has no lint patch for package.json`)
+
+      const tsconfig = JSON.parse(readFileSync(join(templatesDir, tsconfigPatch!.from), "utf8"))
+      const manifest = JSON.parse(readFileSync(join(templatesDir, manifestPatch!.from), "utf8"))
+
+      const plugins: ReadonlyArray<{ name: string }> = tsconfig.compilerOptions?.plugins ?? []
+      assert.isNotEmpty(plugins, `${id}: ${tsconfigPatch!.from} registers no plugins`)
+
+      for (const plugin of plugins) {
+        assert.isDefined(
+          manifest.devDependencies?.[plugin.name],
+          `${id} registers the TypeScript plugin ${plugin.name} in ${tsconfigPatch!.from} but ` +
+            `${manifestPatch!.from} does not depend on it, so it will resolve to nothing`
+        )
+      }
+    }
+  })
+
   it("leaves no file on disk unreferenced", () => {
     // Catches the reverse of the above: a template file added to the tree but
     // never wired into a table would be shipped and never emitted.
