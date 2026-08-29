@@ -61,7 +61,7 @@ verified; the deploy path is not.
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--name`, `-n` | prompted | Directory and package name |
-| `--template`, `-t` | prompted | `http-server`, `basic`, `alchemy-http` or `alchemy-rpc` |
+| `--template`, `-t` | prompted | `http-server`, `fullstack`, `basic`, `alchemy-http` or `alchemy-rpc` |
 | `--runtime` | prompted | `node` or `bun` |
 | `--pm` | prompted (node) | `npm`, `pnpm`, `yarn`, `bun`. Node projects are asked, with the detected manager pre-selected; bun projects use bun. Pass it to skip the prompt |
 | `--no-otel` | on | Skip OTLP logs/metrics/traces wiring |

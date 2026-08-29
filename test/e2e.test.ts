@@ -164,6 +164,79 @@ describe("http-server template end to end", () => {
   }
 })
 
+// A workspace, not a single package, so none of `assertProjectIsSound`'s
+// assumptions hold: there is no `src/` at the root, and `typecheck` and `test`
+// belong to the two apps rather than to the root manifest. Hence its own block.
+describe("fullstack template end to end", () => {
+  for (const variant of variants) {
+    const maybe = variant.runtime === "bun" && !hasBun ? it.skip : it
+
+    maybe(`scaffolds a ${variant.runtime} workspace that installs, builds, typechecks and tests`, () => {
+      const { projectDir, workDir } = scaffold({ name: "my-stack", template: "fullstack", variant })
+
+      try {
+        const root = JSON.parse(readFileSync(join(projectDir, "package.json"), "utf8"))
+        assert.strictEqual(root.name, "my-stack")
+        assert.deepStrictEqual(root.workspaces, ["apps/*"])
+        // The shared lint patch scripts `oxlint src`, which matches nothing here.
+        // A regression to it would lint zero files and still exit 0, so assert the
+        // override survived rather than trusting a green `lint`.
+        assert.strictEqual(root.scripts.lint, "oxlint apps")
+        script(projectDir, "lint")
+
+        // Both halves must typecheck and pass their own tests. `apps/web`'s
+        // `pretypecheck` runs `vite build` first, so this also proves the app
+        // builds — this is the only template with a build step at all.
+        for (const app of ["api", "web"] as const) {
+          const appDir = join(projectDir, "apps", app)
+          script(appDir, "typecheck")
+          const test = spawnSync("npm", ["test"], { cwd: appDir, encoding: "utf8", timeout: 480_000 })
+          assert.strictEqual(test.status, 0, `apps/${app} tests failed: ${test.stdout}${test.stderr}`)
+        }
+
+        // `pretypecheck` is a single line and easy to lose. Without it a fresh
+        // clone cannot typecheck (no generated route tree) and the build quietly
+        // stops being exercised here, with every other assertion still passing.
+        for (const rel of ["dist/client", "dist/server/server.js"]) {
+          assert.isTrue(
+            existsSync(join(projectDir, "apps", "web", rel)),
+            `the web build produced no ${rel}`
+          )
+        }
+
+        // The claim this template shares with the other Notes templates: identical
+        // domain, service and API definition, only relocated under the workspace.
+        const templatesDir = fileURLToPath(new URL("../templates", import.meta.url))
+        const sharedPairs = [
+          ["_shared/notes/domain/Note.ts", "apps/api/src/domain/Note.ts"],
+          ["_shared/notes/Notes.ts", "apps/api/src/server/Notes.ts"],
+          ["_shared/httpapi/api/Api.ts", "apps/api/src/api/Api.ts"]
+        ]
+        for (const [from, to] of sharedPairs) {
+          assert.strictEqual(
+            readFileSync(join(projectDir, to!), "utf8"),
+            readFileSync(join(templatesDir, from!), "utf8"),
+            `${to} does not match the shared source ${from}`
+          )
+        }
+
+        // The point of the workspace: the browser imports the API definition
+        // through the package's `exports`, so one definition is checked on both
+        // sides at compile time. A relative import would typecheck just as well
+        // and quietly break that guarantee.
+        const atoms = readFileSync(join(projectDir, "apps", "web", "src", "atoms", "NotesApi.ts"), "utf8")
+        assert.include(
+          atoms,
+          `@my-stack/api/api`,
+          "the web app does not import the API through its package exports"
+        )
+      } finally {
+        rmSync(workDir, { recursive: true, force: true })
+      }
+    })
+  }
+})
+
 describe("basic template end to end", () => {
   for (const variant of variants) {
     const maybe = variant.runtime === "bun" && !hasBun ? it.skip : it

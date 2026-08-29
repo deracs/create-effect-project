@@ -74,10 +74,11 @@ jobs:
             const r = JSON.parse(readFileSync("e2e-results.json", "utf8"))
             const { numPassedTests: passed, numPendingTests: skipped, numFailedTests: failed } = r
             console.log(`e2e: ${passed} passed, ${skipped} skipped, ${failed} failed`)
-            if (passed !== 9 || skipped !== 0 || failed !== 0) {
+            if (passed !== 11 || skipped !== 0 || failed !== 0) {
               console.log(
-                "::error::expected exactly 9 passing e2e tests (basic + http-server + alchemy-http " +
-                "+ alchemy-rpc on node + bun, plus the node --slop case) with none skipped — " +
+                "::error::expected exactly 11 passing e2e tests (basic + http-server + fullstack " +
+                "+ alchemy-http + alchemy-rpc on node + bun, plus the node --slop case) with none " +
+                "skipped — " +
                 `got ${passed} passed, ${skipped} skipped, ${failed} failed`
               )
               process.exit(1)
