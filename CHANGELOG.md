@@ -9,6 +9,8 @@ the form `## [x.y.z] - YYYY-MM-DD`.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-31
+
 ### Added
 
 - Two templates, bringing the count to seven:
