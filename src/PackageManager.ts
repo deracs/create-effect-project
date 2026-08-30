@@ -45,8 +45,19 @@ export class PackageManager extends Context.Service<PackageManager, {
       return PackageManager.of({
         install: (cwd, manager) =>
           Effect.gen(function*() {
+            yield* Effect.log(`Installing dependencies with ${manager}...`)
             const exitCode = yield* spawner.exitCode(
-              ChildProcess.make(manager, ["install"], { cwd, extendEnv: true })
+              // The manager's own output goes straight to the terminal. A large
+              // template takes the better part of a minute to install, and
+              // silence for that long is indistinguishable from a hang. Real
+              // progress beats a spinner, and every manager already degrades to
+              // plain lines when stdout is not a TTY, so CI stays readable.
+              ChildProcess.make(manager, ["install"], {
+                cwd,
+                extendEnv: true,
+                stdout: "inherit",
+                stderr: "inherit"
+              })
             ).pipe(
               // A spawn failure is not an exit code — reporting it as one would
               // make "not installed" indistinguishable from "exited -1".
