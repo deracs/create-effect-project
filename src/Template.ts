@@ -98,6 +98,16 @@ const sharedFiles: ReadonlyArray<TemplateFile> = [
     to: ".oxlintrc.json",
     substitute: false,
     when: (selection) => selection.lint
+  },
+  // Points the editor at the workspace TypeScript. Without it VS Code runs its
+  // own bundled copy, which loads no plugins — so the language service the lint
+  // feature installs would be silent in the editor while `typecheck` still
+  // reported its diagnostics. Gated on `lint` because that is what installs it.
+  {
+    from: "_shared/features/_vscode.settings.json",
+    to: ".vscode/settings.json",
+    substitute: false,
+    when: (selection) => selection.lint
   }
 ]
 
@@ -423,6 +433,14 @@ export const fullstack: Template = {
     {
       from: "_shared/features/_oxlintrc.json",
       to: ".oxlintrc.json",
+      substitute: false,
+      when: (selection) => selection.lint
+    },
+    // As in `sharedFiles`: the workspace root is where the editor looks, and
+    // where the hoisted TypeScript lives.
+    {
+      from: "_shared/features/_vscode.settings.json",
+      to: ".vscode/settings.json",
       substitute: false,
       when: (selection) => selection.lint
     }

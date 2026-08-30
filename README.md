@@ -65,10 +65,31 @@ verified; the deploy path is not.
 | `--runtime` | prompted | `node` or `bun` |
 | `--pm` | prompted (node) | `npm`, `pnpm`, `yarn`, `bun`. Node projects are asked, with the detected manager pre-selected; bun projects use bun. Pass it to skip the prompt |
 | `--no-otel` | on | Skip OTLP logs/metrics/traces wiring |
-| `--no-lint` | on | Skip oxlint + `@effect/tsgo` language service |
+| `--no-lint` | on | Skip oxlint, the `@effect/tsgo` language service, and `.vscode/settings.json` |
 | `--slop` | off | Add stricter oxlint rules that reject sloppy code (needs `--lint`) |
 | `--no-install` | installs | Skip dependency installation |
 | `--no-git` | initialises | Skip `git init` |
+
+## `--lint`
+
+Two surfaces, not one. oxlint covers the ordinary JavaScript mistakes; the
+`@effect/language-service` plugin covers the Effect-specific ones and reports them
+through `tsc` itself, so `typecheck` fails on them:
+
+```
+src/main.ts(4,3): error TS377001: This Effect value is neither yielded nor used
+  in an assignment. effect(floatingEffect)
+```
+
+That is why `.vscode/settings.json` is part of this feature rather than a nicety.
+A TypeScript language service plugin only loads under the *workspace* TypeScript,
+and VS Code defaults to its own bundled copy — so without those settings the
+plugin is silent in the editor while `typecheck` still reports its findings. The
+file points the editor at `./node_modules/typescript/bin`.
+
+`effect-tsgo patch` is run as `--typescript`, not `--typescript --oxlint`. The
+oxlint half emits the same rules a second time as `effecttsgo/*` oxlint rules,
+which would double-report everything the tsc surface already catches.
 
 ## `--slop`
 

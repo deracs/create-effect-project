@@ -1,13 +1,11 @@
 {
   "scripts": {
-    "prepare": "effect-tsgo patch --typescript --oxlint",
+    "prepare": "effect-tsgo patch --typescript",
     "lint": "oxlint src"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.2",
     "@effect/tsgo": "0.37.0",
-    "@oxlint/plugins": "1.80.0",
-    "oxlint": "1.80.0",
-    "oxlint-tsgolint": "7.0.2001"
+    "oxlint": "1.80.0"
   }
 }
