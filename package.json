@@ -8,7 +8,7 @@
   "homepage": "https://github.com/deracs/create-effect-project#readme",
   "bugs": "https://github.com/deracs/create-effect-project/issues",
   "type": "module",
-  "bin": { "create-effect-project": "./dist/bin.js" },
+  "bin": { "create-effect-project": "dist/bin.js" },
   "files": ["dist", "templates"],
   "//": "Consumers get the bundle and the templates. `engines` is the floor for RUNNING the CLI; the projects it generates carry their own, higher floor in their own manifests.",
   "engines": { "node": ">=20" },
