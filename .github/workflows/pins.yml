@@ -1,0 +1,37 @@
+name: Template pins
+
+# The templates hard-pin their dependencies, and nothing upstream watches those
+# pins: Dependabot and Renovate scan files named `package.json`, while the
+# templates carry `_package.json`. So staleness is otherwise invisible — the e2e
+# installs whatever is pinned, it resolves, and CI stays green while the
+# scaffolder ages.
+#
+# Weekly rather than per-push: a pin lagging the registry by a day is normal and
+# has no business failing a pull request.
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: 'Fail the job if any pin is behind'
+        type: boolean
+        default: false
+
+jobs:
+  check:
+    name: check template pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      # No `npm ci`: the script only reads the template manifests and the public
+      # registry, so it needs nothing installed.
+      - name: Check pins against the registry
+        run: node scripts/check-pins.mjs ${{ inputs.strict && '--strict' || '' }}

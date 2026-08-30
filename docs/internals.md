@@ -155,6 +155,30 @@ installed in CI on purpose: without it the bun cases would skip, leaving the run
 covering only node — so the workflow asserts on the reporter's structured counts that all five
 cases actually ran.
 
+## Keeping the template pins current
+
+The templates hard-pin their dependencies, and **Dependabot and Renovate cannot
+see those pins**: they scan files named `package.json`, while the templates carry
+`_package.json`, underscore-prefixed so npm and git do not treat them as real
+manifests. Nothing upstream watches them, and staleness is invisible from CI —
+the e2e installs whatever is pinned, it resolves, and the suite stays green while
+the scaffolder ages.
+
+```bash
+npm run check:pins            # report drift
+npm run check:pins -- --strict # ...and exit non-zero on it
+```
+
+It reads every template manifest, then compares each exact pin against the right
+dist-tag: a pin to a prerelease is tracking that channel deliberately, so
+`effect` pinned to an rc is compared against `rc` rather than `latest`, which is
+still the v3 line. Where a project publishes prereleases under `latest` and has
+no matching tag — alchemy does this — it falls back rather than reporting a
+blank. Caret ranges float on install and are listed but never counted as stale.
+
+`.github/workflows/pins.yml` runs it weekly rather than per-push, since a pin
+lagging the registry by a day should not fail a pull request.
+
 ## Development
 
 ```bash

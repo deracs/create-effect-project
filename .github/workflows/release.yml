@@ -29,7 +29,9 @@ jobs:
     # and this one is private. The permission is kept so turning it back on is a
     # one-line change to the two publish steps below.
     permissions:
-      contents: read
+      # `write` so the job can create the GitHub Release for the tag it just
+      # published.
+      contents: write
       id-token: write
 
     steps:
@@ -96,3 +98,25 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The tag stays the single source of truth for a release; the GitHub
+      # Release is written from it, after npm has accepted the package. Doing it
+      # in this order means a Release page never advertises a version that failed
+      # to publish. Only for real tag pushes — a dispatch has no tag to attach to.
+      - name: Create the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes="$(awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { capture = 1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md)"
+          if [ -z "$notes" ]; then
+            echo "::warning::no CHANGELOG.md section for $version; falling back to generated notes"
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          else
+            printf '%s\n' "$notes" | gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file -
+          fi

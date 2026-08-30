@@ -1,5 +1,8 @@
 # create-effect-project
 
+[![npm](https://img.shields.io/npm/v/create-effect-project)](https://www.npmjs.com/package/create-effect-project)
+[![license](https://img.shields.io/npm/l/create-effect-project)](LICENSE)
+
 Scaffolds an [Effect](https://effect.website) v4 project on Node or Bun — an HttpApi server, a
 full-stack app, a plain program, or a Cloudflare Worker.
 
@@ -65,7 +68,8 @@ for native TypeScript execution, or Bun 1.3+.
 ## Contributing
 
 See [docs/internals.md](docs/internals.md) for how the template registry works, how to add a
-template, and how the package is built, tested and released.
+template, and how the package is built, tested and released. Notable changes are in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
