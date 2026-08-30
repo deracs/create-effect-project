@@ -9,6 +9,19 @@ the form `## [x.y.z] - YYYY-MM-DD`.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-31
+
+### Changed
+
+- Template pins brought up to date: `@effect/tsgo` 0.37.0 -> 0.38.0 and
+  `alchemy` 2.0.0-beta.74 -> 2.0.0-beta.75. Every pin now matches its channel.
+  The tsgo bump was checked for the failure that matters — a language service
+  that loads but reports nothing — by confirming a floating Effect still fails
+  `typecheck` with TS377001 in a generated project.
+- The package description named three templates and predated four more, so npm
+  search results and the top of the package page described a tool with no
+  `fullstack`, `cli` or `ai`.
+
 ## [0.3.0] - 2026-08-31
 
 ### Added

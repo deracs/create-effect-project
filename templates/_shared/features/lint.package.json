@@ -5,7 +5,7 @@
   },
   "devDependencies": {
     "@effect/language-service": "0.87.2",
-    "@effect/tsgo": "0.37.0",
+    "@effect/tsgo": "0.38.0",
     "oxlint": "1.80.0"
   }
 }
