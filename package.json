@@ -1,6 +1,6 @@
 {
   "name": "create-effect-project",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Scaffold an Effect v4 project — an HttpApi server, a plain program, or a Cloudflare Worker over HTTP or RPC — on Node or Bun",
   "keywords": ["effect", "effect-ts", "scaffold", "template", "cli", "starter"],
   "license": "MIT",

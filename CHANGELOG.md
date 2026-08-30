@@ -9,6 +9,23 @@ the form `## [x.y.z] - YYYY-MM-DD`.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-31
+
+### Added
+
+- The package manager's own output is shown while installing. A large template
+  takes the better part of a minute, and the CLI previously said nothing for the
+  whole of it, which was indistinguishable from a hang. Every manager falls back
+  to plain lines when stdout is not a TTY, so CI output stays readable.
+- `npm run check:pins` reports template dependency pins that have fallen behind
+  the registry, run weekly in CI. Dependabot and Renovate cannot see these pins:
+  they scan files named `package.json`, and the templates carry `_package.json`.
+
+### Changed
+
+- Releases now create their GitHub Release automatically, after npm accepts the
+  package, with notes taken from this file.
+
 ## [0.1.0] - 2026-08-30
 
 First published release.
