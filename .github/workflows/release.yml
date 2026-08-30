@@ -24,8 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
-    # Required for npm provenance, which cryptographically links the published
-    # tarball to this workflow run and this commit.
+    # `id-token: write` is what npm provenance needs. Provenance is currently
+    # off: npm only generates it for packages whose source repository is public,
+    # and this one is private. The permission is kept so turning it back on is a
+    # one-line change to the two publish steps below.
     permissions:
       contents: read
       id-token: write
@@ -87,10 +89,10 @@ jobs:
 
       - name: Publish (dry run)
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run
-        run: npm publish --dry-run --provenance --access public
+        run: npm publish --dry-run --access public
 
       - name: Publish
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)
-        run: npm publish --provenance --access public
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
