@@ -9,6 +9,41 @@ the form `## [x.y.z] - YYYY-MM-DD`.
 
 ## [Unreleased]
 
+### Added
+
+- Two templates, bringing the count to seven:
+  - `cli` — a command-line app over the same Notes service: subcommands,
+    arguments, flags, prompts, generated `--help` and shell completions, and a
+    typed error that becomes one sentence and exit 1. Carries a second
+    implementation of the Notes service backed by a JSON file, because a CLI
+    exits between commands and the shared in-memory layer would forget.
+  - `ai` — a language model given that same service as a typed `Toolkit`.
+    Anthropic or OpenAI behind one `LanguageModel` layer chosen by
+    `AI_PROVIDER`, with tool parameters and results as schemas. Its tests stub
+    the model with `LanguageModel.make`, so they need no API key and no network.
+- `--print-dir` prints the new project's absolute path to stdout and nothing
+  else, so `cd "$(create-effect-project ... --print-dir)"` works. A child
+  process cannot change its parent shell's directory; this is what lets the
+  shell do it. It also makes the CLI scriptable, since a caller gets a
+  machine-readable path instead of scraping log lines for one.
+
+### Fixed
+
+- `src/config.ts` is no longer emitted by templates that never open a socket. It
+  carries `port` and `baseUrl`, which meant nothing to `cli` or `ai` — an
+  unimported file a reader has to work out is dead. There is now a test holding
+  it to the same standard the observability stub is held to.
+
+### Changed
+
+- The packaged-install smoke test scaffolds every template rather than two, so a
+  template whose sources failed to ship fails there instead of in someone's
+  `npx`.
+- Under `--print-dir`, the CLI's own logging moves to stderr
+  (`Logger.LogToStderr`) and the package manager's output is piped there too.
+  Effect's default logger writes to stdout, so without this the install progress
+  would land inside the `cd` argument.
+
 ## [0.2.0] - 2026-08-31
 
 ### Added

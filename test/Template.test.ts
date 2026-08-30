@@ -326,7 +326,9 @@ describe("Template.render", () => {
     const templates = [
       Template.httpServer,
       Template.alchemyHttp,
-      Template.alchemyRpc
+      Template.alchemyRpc,
+      Template.cli,
+      Template.ai
     ]
     for (const template of templates) {
       assert.isNotEmpty(notes(template), `${template.id} shares no Notes sources`)
@@ -359,6 +361,76 @@ describe("Template.render", () => {
       assert.notInclude(written, "src/index.ts")
       assert.notInclude(written, "src/observability.ts")
     })
+  })
+
+  it.effect("renders cli: commands over the shared Notes service, with no transport", () => {
+    const { effect } = run({}, Template.cli)
+    return Effect.gen(function*() {
+      const written = yield* effect
+      assert.include(written, "src/main.ts")
+      // The same domain and service the HTTP and RPC templates serve.
+      assert.include(written, "src/domain/Note.ts")
+      assert.include(written, "src/server/Notes.ts")
+      // A second implementation of that same service. Without it `add` in one
+      // process and `list` in the next would disagree, because the shared layer
+      // is a Map that dies with the process.
+      assert.include(written, "src/NotesFile.ts")
+      // No transport of any kind: not a server, not a Worker, not a client.
+      assert.notInclude(written, "src/api/Api.ts")
+      assert.notInclude(written, "src/server/http.ts")
+      assert.notInclude(written, "src/client/ApiClient.ts")
+      assert.notInclude(written, "src/index.ts")
+      assert.notInclude(written, "src/worker.ts")
+    })
+  })
+
+  it.effect("renders ai: the Notes service as a toolkit, behind a provider-agnostic model", () => {
+    const { effect } = run({}, Template.ai)
+    return Effect.gen(function*() {
+      const written = yield* effect
+      assert.include(written, "src/main.ts")
+      assert.include(written, "src/AiModel.ts")
+      assert.include(written, "src/NotesToolkit.ts")
+      // The same domain and service the HTTP, RPC and CLI templates use — the
+      // model gets the real business logic, not a copy written for it.
+      assert.include(written, "src/domain/Note.ts")
+      assert.include(written, "src/server/Notes.ts")
+      // No transport: the model talks to the service in-process.
+      assert.notInclude(written, "src/api/Api.ts")
+      assert.notInclude(written, "src/server/http.ts")
+      assert.notInclude(written, "src/client/ApiClient.ts")
+      assert.notInclude(written, "src/worker.ts")
+    })
+  })
+
+  it("depends on both AI providers, since either can be chosen at runtime", () => {
+    // `AI_PROVIDER` picks between them at startup, so shipping one dependency
+    // would turn a supported configuration into a missing-module crash.
+    const manifests = Template.ai.files.filter((file) => file.to === "package.json")
+    assert.isNotEmpty(manifests)
+    for (const manifest of manifests) {
+      const parsed = JSON.parse(
+        readFileSync(join(fileURLToPath(new URL("../templates", import.meta.url)), manifest.from), "utf8")
+      )
+      for (const dependency of ["@effect/ai-anthropic", "@effect/ai-openai"]) {
+        assert.isDefined(
+          parsed.dependencies?.[dependency],
+          `${manifest.from} does not depend on ${dependency}`
+        )
+      }
+    }
+  })
+
+  it("keeps the cli file store out of the templates that do not need it", () => {
+    // `NotesFile.ts` lives under `cli/` rather than `_shared/` precisely so the
+    // server templates do not emit a persistence layer nothing imports.
+    for (const id of Template.ids) {
+      if (id === "cli") continue
+      assert.isTrue(
+        Template.byId(id).files.every((file) => !file.from.includes("NotesFile")),
+        `${id} emits the cli template's file-backed Notes layer`
+      )
+    }
   })
 
   it.effect("gives every template the shared optional features on the same terms", () => {
@@ -534,6 +606,27 @@ it("installs every TypeScript plugin the lint patch registers", () => {
     }
   })
 
+  it("emits config.ts only where something imports it", () => {
+    // The same standard the observability stub is held to: a file nothing
+    // imports is worse than no file, because a reader has to work out that it is
+    // dead. `config.ts` carries `port` and `baseUrl`, which mean nothing to a
+    // template that never opens a socket.
+    for (const id of Template.ids) {
+      const template = Template.byId(id)
+      if (!template.files.some((file) => file.from === "_shared/config.ts")) continue
+
+      const importers = template.files.filter((file) =>
+        file.from !== "_shared/config.ts" &&
+        (file.from.endsWith(".ts") || file.from.endsWith(".tsx")) &&
+        readFileSync(join(templatesDir, file.from), "utf8").includes(`config.ts"`)
+      )
+      assert.isNotEmpty(
+        importers,
+        `${id} emits src/config.ts but no file it emits imports it`
+      )
+    }
+  })
+
   it("leaves no file on disk unreferenced", () => {
     // Catches the reverse of the above: a template file added to the tree but
     // never wired into a table would be shipped and never emitted.
@@ -595,7 +688,11 @@ it("installs every TypeScript plugin the lint patch registers", () => {
       "http-server/runtime/node/index.ts",
       "http-server/runtime/bun/index.ts",
       "basic/runtime/node/main.ts",
-      "basic/runtime/bun/main.ts"
+      "basic/runtime/bun/main.ts",
+      "cli/runtime/node/main.ts",
+      "cli/runtime/bun/main.ts",
+      "ai/runtime/node/main.ts",
+      "ai/runtime/bun/main.ts"
     ]
     for (const entrypoint of entrypoints) {
       const contents = readFileSync(join(templatesDir, entrypoint), "utf8")
@@ -605,6 +702,22 @@ it("installs every TypeScript plugin the lint patch registers", () => {
         `${entrypoint} does not provide Observability.layer`
       )
     }
+  })
+
+  it("keeps the two cli entrypoints identical apart from the runtime", () => {
+    // Same reasoning as the basic pair below: these two files exist to differ
+    // only in which platform supplies the services and runs the program.
+    const normalise = (relPath: string) =>
+      readFileSync(join(templatesDir, relPath), "utf8")
+        .replace(/import \{ (Node|Bun)Runtime, (Node|Bun)Services \} from "@effect\/platform-(node|bun)"\n/, "")
+        .replace(/(Node|Bun)Services\.layer/, "Services.layer")
+        .replace(/(Node|Bun)Runtime\.runMain/, "runMain")
+
+    assert.strictEqual(
+      normalise("cli/runtime/node/main.ts"),
+      normalise("cli/runtime/bun/main.ts"),
+      "cli node and bun main.ts have drifted beyond their runtime lines"
+    )
   })
 
   it("keeps the two basic entrypoints identical apart from the runtime", () => {

@@ -13,7 +13,15 @@ export type Runtime = typeof runtimes[number]
  * Adding one is a directory under `templates/`, an entry here, and an entry in
  * `all` — optional features and both runtimes then apply to it unchanged.
  */
-export const ids = ["http-server", "fullstack", "basic", "alchemy-http", "alchemy-rpc"] as const
+export const ids = [
+  "http-server",
+  "fullstack",
+  "basic",
+  "cli",
+  "ai",
+  "alchemy-http",
+  "alchemy-rpc"
+] as const
 
 export type Id = typeof ids[number]
 
@@ -137,9 +145,19 @@ const observabilityFiles: ReadonlyArray<TemplateFile> = [
  */
 const notesFiles: ReadonlyArray<TemplateFile> = [
   { from: "_shared/notes/domain/Note.ts", to: "src/domain/Note.ts", substitute: false },
-  { from: "_shared/notes/Notes.ts", to: "src/server/Notes.ts", substitute: false },
-  { from: "_shared/config.ts", to: "src/config.ts", substitute: false }
+  { from: "_shared/notes/Notes.ts", to: "src/server/Notes.ts", substitute: false }
 ]
+
+/**
+ * `port` and `baseUrl` — only for templates that actually open or call a socket.
+ * Not part of `notesFiles`, because `cli` and `ai` reach the same service
+ * in-process and would otherwise emit a config file nothing imports.
+ */
+const socketConfigFile: TemplateFile = {
+  from: "_shared/config.ts",
+  to: "src/config.ts",
+  substitute: false
+}
 
 /**
  * The HTTP face of the Notes domain: one schema-first `HttpApi` definition, its
@@ -148,6 +166,7 @@ const notesFiles: ReadonlyArray<TemplateFile> = [
  */
 const httpApiFiles: ReadonlyArray<TemplateFile> = [
   ...notesFiles,
+  socketConfigFile,
   { from: "_shared/httpapi/api/Api.ts", to: "src/api/Api.ts", substitute: false },
   { from: "_shared/httpapi/api/System.ts", to: "src/api/System.ts", substitute: false },
   { from: "_shared/httpapi/api/Notes.ts", to: "src/api/Notes.ts", substitute: false },
@@ -526,6 +545,147 @@ export const basic: Template = {
 }
 
 /**
+ * The same Notes service as the server templates, driven from `argv` instead of
+ * a port. Carries a second implementation of that service — file-backed rather
+ * than in-memory — because a CLI exits between commands and a `Map` would not
+ * survive the gap.
+ */
+export const cli: Template = {
+  id: "cli",
+  title: "CLI — subcommands, prompts and typed errors over the Notes service",
+  description: "A command-line app: subcommands, arguments, flags, prompts and exit codes",
+  supportsOtel: true,
+  files: [
+    ...notesFiles,
+    { from: "cli/src/commands.ts", to: "src/commands.ts", substitute: true },
+    { from: "cli/src/NotesFile.ts", to: "src/NotesFile.ts", substitute: false },
+    { from: "cli/README.md", to: "README.md", substitute: true },
+
+    // Runtime-specific: the runner, and the test framework (`@effect/vitest`
+    // under node, `bun:test` under bun).
+    { from: "cli/runtime/node/main.ts", to: "src/main.ts", substitute: true, when: forRuntime("node") },
+    {
+      from: "cli/runtime/node/NotesFile.test.ts",
+      to: "src/NotesFile.test.ts",
+      substitute: false,
+      when: forRuntime("node")
+    },
+    {
+      from: "cli/runtime/node/_package.json",
+      to: "package.json",
+      substitute: true,
+      when: forRuntime("node")
+    },
+    {
+      from: "cli/runtime/node/_tsconfig.json",
+      to: "tsconfig.json",
+      substitute: false,
+      when: forRuntime("node")
+    },
+    { from: "cli/runtime/bun/main.ts", to: "src/main.ts", substitute: true, when: forRuntime("bun") },
+    {
+      from: "cli/runtime/bun/NotesFile.test.ts",
+      to: "src/NotesFile.test.ts",
+      substitute: false,
+      when: forRuntime("bun")
+    },
+    {
+      from: "cli/runtime/bun/_package.json",
+      to: "package.json",
+      substitute: true,
+      when: forRuntime("bun")
+    },
+    {
+      from: "cli/runtime/bun/_tsconfig.json",
+      to: "tsconfig.json",
+      substitute: false,
+      when: forRuntime("bun")
+    },
+
+    ...observabilityFiles,
+    ...sharedFiles
+  ],
+  patches: sharedPatches,
+  nextSteps: (selection) => [
+    `${runCmd(selection.packageManager)} dev -- add "Buy milk" --body "2 litres"`,
+    `${runCmd(selection.packageManager)} dev -- list`,
+    `${runCmd(selection.packageManager)} dev -- --help`,
+    `${runCmd(selection.packageManager)} test`
+  ]
+}
+
+/**
+ * The same Notes service again, this time handed to a language model as tools.
+ * `LanguageModel` is the seam: the toolkit and the program name it and never
+ * name a provider, so Anthropic and OpenAI are one file apart — and a stub in
+ * the tests is a third implementation of the same interface, which is why they
+ * need no API key.
+ */
+export const ai: Template = {
+  id: "ai",
+  title: "AI — a language model calling the Notes service as typed tools",
+  description: "A language model with typed tools, on Anthropic or OpenAI",
+  supportsOtel: true,
+  files: [
+    ...notesFiles,
+    { from: "ai/src/AiModel.ts", to: "src/AiModel.ts", substitute: true },
+    { from: "ai/src/NotesToolkit.ts", to: "src/NotesToolkit.ts", substitute: false },
+    { from: "ai/README.md", to: "README.md", substitute: true },
+
+    // Runtime-specific: the runner, and the test framework (`@effect/vitest`
+    // under node, `bun:test` under bun).
+    { from: "ai/runtime/node/main.ts", to: "src/main.ts", substitute: true, when: forRuntime("node") },
+    {
+      from: "ai/runtime/node/NotesToolkit.test.ts",
+      to: "src/NotesToolkit.test.ts",
+      substitute: false,
+      when: forRuntime("node")
+    },
+    {
+      from: "ai/runtime/node/_package.json",
+      to: "package.json",
+      substitute: true,
+      when: forRuntime("node")
+    },
+    {
+      from: "ai/runtime/node/_tsconfig.json",
+      to: "tsconfig.json",
+      substitute: false,
+      when: forRuntime("node")
+    },
+    { from: "ai/runtime/bun/main.ts", to: "src/main.ts", substitute: true, when: forRuntime("bun") },
+    {
+      from: "ai/runtime/bun/NotesToolkit.test.ts",
+      to: "src/NotesToolkit.test.ts",
+      substitute: false,
+      when: forRuntime("bun")
+    },
+    {
+      from: "ai/runtime/bun/_package.json",
+      to: "package.json",
+      substitute: true,
+      when: forRuntime("bun")
+    },
+    {
+      from: "ai/runtime/bun/_tsconfig.json",
+      to: "tsconfig.json",
+      substitute: false,
+      when: forRuntime("bun")
+    },
+
+    ...observabilityFiles,
+    ...sharedFiles
+  ],
+  patches: sharedPatches,
+  nextSteps: (selection) => [
+    "export ANTHROPIC_API_KEY=sk-...   # or OPENAI_API_KEY with AI_PROVIDER=openai",
+    `${runCmd(selection.packageManager)} start`,
+    `${runCmd(selection.packageManager)} start -- "what notes do I have?"`,
+    `${runCmd(selection.packageManager)} test      # no key needed`
+  ]
+}
+
+/**
  * The same HttpApi as `http-server`, deployed to a Cloudflare Worker with
  * Alchemy instead of bound to a port. `--runtime` still applies, but it selects
  * what runs the deploy script and the client demo — the Worker itself always
@@ -617,6 +777,8 @@ export const alchemyRpc: Template = {
   supportsOtel: false,
   files: [
     ...notesFiles,
+    // The RPC client reads `baseUrl` to reach the deployed Worker.
+    socketConfigFile,
     { from: "alchemy-rpc/src/rpc.ts", to: "src/rpc.ts", substitute: false },
     { from: "alchemy-rpc/src/server/Notes/rpc.ts", to: "src/server/Notes/rpc.ts", substitute: false },
     { from: "alchemy-rpc/src/worker.ts", to: "src/worker.ts", substitute: true },
@@ -691,6 +853,8 @@ export const all: Record<Id, Template> = {
   "http-server": httpServer,
   fullstack,
   basic,
+  cli,
+  ai,
   "alchemy-http": alchemyHttp,
   "alchemy-rpc": alchemyRpc
 }

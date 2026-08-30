@@ -3,7 +3,7 @@
 // CLI as a subprocess, not application code.
 import { assert, describe, it } from "@effect/vitest"
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -373,6 +373,112 @@ describe("basic template end to end", () => {
   }
 })
 
+describe("cli template end to end", () => {
+  for (const variant of variants) {
+    const maybe = variant.runtime === "bun" && !hasBun ? it.skip : it
+
+    maybe(`scaffolds a ${variant.runtime} project whose commands run and persist`, () => {
+      const { projectDir, workDir } = scaffold({ name: "notes-cli", template: "cli", variant })
+
+      try {
+        assertProjectIsSound(projectDir, "notes-cli")
+
+        const [cmd, args] = variant.exec("src/main.ts")
+        // Each call is its own process, which is the whole point: the file-backed
+        // layer exists because the shared in-memory one would forget between them.
+        const cli = (...argv: ReadonlyArray<string>) =>
+          spawnSync(cmd, [...args, ...argv], {
+            cwd: projectDir,
+            encoding: "utf8",
+            timeout: 120_000
+          })
+
+        const empty = cli("list")
+        assert.strictEqual(empty.status, 0, `list failed: ${empty.stdout}${empty.stderr}`)
+        assert.include(`${empty.stdout}${empty.stderr}`, "No notes yet")
+
+        const added = cli("add", "Buy milk", "--body", "2 litres")
+        assert.strictEqual(added.status, 0, `add failed: ${added.stdout}${added.stderr}`)
+
+        // A different process reading what the last one wrote. With
+        // `Notes.layerMemory` this assertion is the one that fails.
+        const listed = cli("list")
+        assert.strictEqual(listed.status, 0, `list failed: ${listed.stdout}${listed.stderr}`)
+        assert.include(`${listed.stdout}${listed.stderr}`, "Buy milk")
+
+        const got = cli("get", "1")
+        assert.strictEqual(got.status, 0, `get failed: ${got.stdout}${got.stderr}`)
+        assert.include(`${got.stdout}${got.stderr}`, "2 litres")
+
+        // The typed error has to reach the shell as a non-zero exit and a
+        // sentence — a CLI that exits 0 on failure is worse than one that crashes.
+        const missing = cli("get", "999")
+        assert.strictEqual(missing.status, 1, "a missing note did not exit 1")
+        const output = `${missing.stdout}${missing.stderr}`
+        assert.include(output, "No note with id 999")
+        assert.notInclude(output, "NoteNotFound", "the raw error tag leaked to the user")
+
+        // `--help` is generated from the command definitions, so this also
+        // proves the subcommands are actually registered.
+        const help = cli("--help")
+        assert.strictEqual(help.status, 0, `--help failed: ${help.stdout}${help.stderr}`)
+        for (const subcommand of ["add", "list", "get"]) {
+          assert.include(`${help.stdout}${help.stderr}`, subcommand)
+        }
+      } finally {
+        rmSync(workDir, { recursive: true, force: true })
+      }
+    })
+  }
+})
+
+describe("ai template end to end", () => {
+  for (const variant of variants) {
+    const maybe = variant.runtime === "bun" && !hasBun ? it.skip : it
+
+    // No API key here, and none in CI. What is proved is that the project
+    // installs, typechecks, lints, and that its tests — which stub
+    // `LanguageModel` rather than calling a provider — pass. `main.ts` needs a
+    // real key, so it is not executed, the same as the alchemy templates.
+    maybe(`scaffolds a ${variant.runtime} project that installs, typechecks and tests`, () => {
+      const { projectDir, workDir } = scaffold({ name: "notes-ai", template: "ai", variant })
+
+      try {
+        assertProjectIsSound(projectDir, "notes-ai")
+
+        const manifest = JSON.parse(readFileSync(join(projectDir, "package.json"), "utf8"))
+        // `AI_PROVIDER` picks between them at startup, so a project carrying
+        // only one would crash on a configuration the template documents.
+        assert.isDefined(manifest.dependencies["@effect/ai-anthropic"])
+        assert.isDefined(manifest.dependencies["@effect/ai-openai"])
+
+        const toolkit = readFileSync(join(projectDir, "src", "NotesToolkit.ts"), "utf8")
+        // The handlers must call the shared service rather than reimplement it.
+        assert.include(toolkit, "notes.create")
+        assert.include(toolkit, "notes.getById")
+
+        const model = readFileSync(join(projectDir, "src", "AiModel.ts"), "utf8")
+        assert.include(model, "AnthropicLanguageModel")
+        assert.include(model, "OpenAiLanguageModel")
+
+        // Nothing outside AiModel.ts may name a provider — that is the claim
+        // the template makes about `LanguageModel` being the seam.
+        for (const file of ["main.ts", "NotesToolkit.ts", "NotesToolkit.test.ts"]) {
+          const contents = readFileSync(join(projectDir, "src", file), "utf8")
+          assert.notInclude(
+            contents,
+            "@effect/ai-anthropic",
+            `${file} names a provider directly, so switching providers is not one file`
+          )
+          assert.notInclude(contents, "@effect/ai-openai", `${file} names a provider directly`)
+        }
+      } finally {
+        rmSync(workDir, { recursive: true, force: true })
+      }
+    })
+  }
+})
+
 // Both alchemy templates deploy a Worker, so they share every check except
 // which sources they must and must not emit.
 const alchemyTemplates = [
@@ -444,6 +550,61 @@ describe.each(alchemyTemplates)("$id template end to end", (template) => {
       }
     })
   }
+})
+
+describe("--print-dir end to end", () => {
+  // Node only: the flag is runtime-independent, and the point of the case is
+  // what reaches the two real streams of a real process — which a unit test
+  // with a fake `Console` cannot show.
+  it("puts the project path on stdout and everything else on stderr", () => {
+    // `realpathSync` because on macOS `tmpdir()` is a symlink (/var -> /private/var)
+    // and the CLI resolves against its actual working directory, which is right.
+    const workDir = realpathSync(mkdtempSync(join(tmpdir(), "cea-print-dir-")))
+
+    try {
+      // Installing on purpose: the package manager writes to stdout by default,
+      // and a progress bar landing in a command substitution would end up inside
+      // the `cd` argument. That is the regression this case exists for.
+      const result = spawnSync(
+        process.execPath,
+        [
+          "--experimental-strip-types",
+          binPath,
+          "--name",
+          "printed-app",
+          "--template",
+          "basic",
+          "--runtime",
+          "node",
+          "--pm",
+          "npm",
+          "--no-git",
+          "--print-dir"
+        ],
+        { cwd: workDir, encoding: "utf8", timeout: 480_000 }
+      )
+      assert.strictEqual(result.status, 0, `scaffold failed: ${result.stderr}`)
+
+      // Exactly one line, and it is the directory — this is what `cd "$(...)"`
+      // receives verbatim.
+      assert.strictEqual(
+        result.stdout,
+        `${join(workDir, "printed-app")}\n`,
+        `stdout was not exactly the project path: ${JSON.stringify(result.stdout)}`
+      )
+      assert.isTrue(existsSync(join(workDir, "printed-app", "package.json")))
+
+      // The human output is not lost, only moved: a silent minute during an
+      // install is what showing it was meant to prevent.
+      assert.include(result.stderr, "Created printed-app")
+      assert.include(result.stderr, "Installing dependencies")
+      // The install actually ran and its output went to the other stream.
+      assert.isTrue(existsSync(join(workDir, "printed-app", "node_modules")))
+      assert.include(result.stderr, "packages", `npm's own output did not reach stderr: ${result.stderr}`)
+    } finally {
+      rmSync(workDir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe("--slop oxlint rules end to end", () => {

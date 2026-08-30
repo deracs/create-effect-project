@@ -95,9 +95,16 @@ try {
 
   // Every template must scaffold from the installed package, which proves
   // templates/ shipped in the tarball and that templateRoot resolves from dist/.
+  // One distinctive file per template, so a template that shipped without its
+  // own sources fails here rather than passing on package.json alone.
   const templates = [
     { id: "http-server", entry: "src/index.ts" },
-    { id: "basic", entry: "src/main.ts" }
+    { id: "fullstack", entry: "apps/api/src/index.ts" },
+    { id: "basic", entry: "src/main.ts" },
+    { id: "cli", entry: "src/commands.ts" },
+    { id: "ai", entry: "src/NotesToolkit.ts" },
+    { id: "alchemy-http", entry: "src/worker.ts" },
+    { id: "alchemy-rpc", entry: "src/rpc.ts" }
   ]
   for (const template of templates) {
     const name = `smoke-${template.id}`

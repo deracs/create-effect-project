@@ -5,13 +5,13 @@ For using it, see the [README](../README.md).
 
 ## How the templates relate
 
-All five get the same optional features and both runtimes. No build step: Node and Bun execute
+All seven get the same optional features and both runtimes. No build step: Node and Bun execute
 TypeScript directly — except `fullstack`'s web app, which Vite builds.
 
-Four of them serve the same Notes domain. `domain/Note.ts` and `server/Notes.ts` come from
-`templates/_shared/notes/` and are emitted byte-identically by all four — under `src/` for the
+Six of them serve the same Notes domain. `domain/Note.ts` and `server/Notes.ts` come from
+`templates/_shared/notes/` and are emitted byte-identically by all six — under `src/` for the
 single-package templates and under `apps/api/src/` for `fullstack` — so the business logic is one
-file and only the transport adapter differs. `http-server` and `alchemy-http` go
+file and only the way it is reached differs. `http-server` and `alchemy-http` go
 further and share the whole `HttpApi` surface from `templates/_shared/httpapi/`; their only
 difference is the entrypoint:
 
@@ -26,6 +26,25 @@ HttpRouter.toHttpEffect(AllRoutes).pipe(Effect.provide(HttpServer.layerServices)
 `alchemy-rpc` swaps that entrypoint for an `RpcGroup`: no paths, verbs or status codes, and
 `NoteNotFound` reaches the client as itself rather than as a 404 to interpret. What you give up is
 everything that comes from being ordinary HTTP — no OpenAPI document, no Scalar page, no `curl`.
+
+`cli` and `ai` drop the wire entirely. `cli` binds the same service to `argv` — subcommands,
+arguments, flags and prompts from `effect/unstable/cli` — and turns `NoteNotFound` into one
+sentence and exit 1 rather than a stack trace. It is the one Notes template that carries a second
+implementation of the service: `src/NotesFile.ts`, backed by JSON, because a CLI exits between
+commands and `layerMemory` would forget. That file lives under `templates/cli/` rather than
+`_shared/` precisely so the server templates do not emit a persistence layer nothing imports —
+there is a test asserting exactly that.
+
+`ai` hands the same service to a language model as a `Toolkit`, with parameters and results as
+schemas, so a model that sends the wrong shape is stopped before a handler runs. `src/AiModel.ts`
+builds `Layer<LanguageModel, ConfigError>` from either Anthropic or OpenAI; both branches have that
+type, which is why nothing outside that file names a provider — the e2e asserts that too. The tests
+provide a third implementation of the same interface via `LanguageModel.make`, so they need no API
+key and no network.
+
+**What CI does not cover for `ai`:** `main.ts` needs a real provider key, so the e2e installs,
+typechecks, lints and runs the stubbed tests but never executes it — the same boundary as the
+alchemy templates.
 
 For both alchemy templates, `--runtime` still applies but selects what runs the deploy script and
 the client demo — the Worker itself always targets workerd. `--otel` does **not** apply: OTLP from
@@ -149,11 +168,16 @@ job as a dry run. The workflow needs an `NPM_TOKEN` secret.
 `.github/workflows/ci.yml` runs typecheck, the unit suite, the packaged-install smoke test, and
 the end-to-end test on every push
 to `main` and every pull request. The e2e scaffolds, installs and runs a real project for every
-template × runtime combination, lints it, and additionally covers `--slop` on node.
-The alchemy templates stop at the deploy boundary, as noted above. Bun is
-installed in CI on purpose: without it the bun cases would skip, leaving the run green while
-covering only node — so the workflow asserts on the reporter's structured counts that all five
-cases actually ran.
+template × runtime combination, lints it, and additionally covers `--slop` and `--print-dir` on
+node. The alchemy templates stop at the deploy boundary and `ai` stops short of executing
+`main.ts`, as noted above. Bun is installed in CI on purpose: without it the bun cases would skip,
+leaving the run green while covering only node — so the workflow asserts on the reporter's
+structured counts that all 16 cases actually ran.
+
+The `--print-dir` case installs on purpose. Effect's default logger writes to stdout and so does
+npm, so the flag has to move both — `Logger.LogToStderr` for the CLI's own lines, and a piped
+stdout forwarded to stderr for the package manager's. Nothing but a real process pair can show
+that, which is why a unit test with a swapped `Console` is not enough here.
 
 ## Keeping the template pins current
 
