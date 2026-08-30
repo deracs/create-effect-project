@@ -7,16 +7,24 @@ import { root } from "../src/Cli.ts"
 import { InstallFailed, PackageManagerMissing } from "../src/Errors.ts"
 import { Git } from "../src/Git.ts"
 import { PackageManager } from "../src/PackageManager.ts"
+import { isAbsolute, resolve } from "node:path"
 import * as PackageManagerModule from "../src/PackageManager.ts"
 
 interface Journal {
-  readonly installs: Array<readonly [string, string]>
+  /** cwd, manager, and where the manager was told to send its own output. */
+  readonly installs: Array<readonly [string, string, string | undefined]>
   readonly gitInits: Array<string>
   readonly writes: Array<string>
   /** Rendered log messages, so the printed next steps can be asserted on. */
   readonly logs: Array<string>
   /** What `Console.error` was called with, i.e. what the user actually sees on a UserError. */
   readonly errors: Array<string>
+  /**
+   * What reached real stdout. Separate from `logs` because the two streams are
+   * the whole point of `--print-dir`: everything human goes to stderr, so a
+   * caller can substitute the command and get a path and nothing else.
+   */
+  readonly stdout: Array<string>
 }
 
 /** A terminal that replays `keys` as if typed, for the fallback prompts. */
@@ -57,12 +65,13 @@ const harness = (overrides: {
   readonly nonEmptyTarget?: boolean
   readonly terminal?: Layer.Layer<Terminal.Terminal>
 } = {}) => {
-  const journal: Journal = { installs: [], gitInits: [], writes: [], logs: [], errors: [] }
+  const journal: Journal = { installs: [], gitInits: [], writes: [], logs: [], errors: [], stdout: [] }
   const written = new Map<string, string>()
   // The CLI runner renders `CliError.UserError` via `Console.error`, not `Stdio`,
   // so capturing what the user sees means swapping the `Console` service.
   const testConsole: Console.Console = Object.assign(Object.create(console), {
-    error: (...args: ReadonlyArray<unknown>) => journal.errors.push(args.map(String).join(" "))
+    error: (...args: ReadonlyArray<unknown>) => journal.errors.push(args.map(String).join(" ")),
+    log: (...args: ReadonlyArray<unknown>) => journal.stdout.push(args.map(String).join(" "))
   })
   const layer = Layer.mergeAll(
     Layer.succeed(Console.Console, testConsole),
@@ -89,8 +98,8 @@ const harness = (overrides: {
       ChildProcessSpawner.make(() => Effect.die("unused"))
     ),
     Layer.succeed(PackageManager, PackageManager.of({
-      install: (cwd, manager) => {
-        journal.installs.push([cwd, manager] as const)
+      install: (cwd, manager, options) => {
+        journal.installs.push([cwd, manager, options?.stdout] as const)
         if (overrides.missingManager === true) {
           return Effect.fail(new PackageManagerMissing({ packageManager: manager, cause: new Error("ENOENT") }))
         }
@@ -422,6 +431,83 @@ describe("Cli", () => {
         rendered.includes("my-api already exists and is not empty"),
         `error output did not name the directory as one sentence: ${JSON.stringify(journal.errors)}`
       )
+    }).pipe(Effect.provide(layer))
+  })
+
+  // `--print-dir` exists because a child process cannot change its parent's
+  // working directory. The path on stdout is what makes `cd "$(...)"` work, so
+  // stdout carrying exactly one line — and nothing else ever carrying one — is
+  // the whole contract.
+  it.effect("prints the absolute project path on stdout with --print-dir", () => {
+    const { journal, layer } = harness()
+    return Effect.gen(function*() {
+      yield* run(["--name", "my-api", "--runtime", "node", "--pm", "npm", "--print-dir"])
+      assert.deepStrictEqual(journal.stdout, [resolve("my-api")])
+    }).pipe(Effect.provide(layer))
+  })
+
+  it.effect("prints an absolute path, since the caller's cwd is not ours to assume", () => {
+    const { journal, layer } = harness()
+    return Effect.gen(function*() {
+      yield* run(["--name", "my-api", "--runtime", "node", "--pm", "npm", "--print-dir"])
+      assert.isTrue(
+        isAbsolute(journal.stdout[0] ?? ""),
+        `stdout was not an absolute path: ${JSON.stringify(journal.stdout)}`
+      )
+    }).pipe(Effect.provide(layer))
+  })
+
+  it.effect("writes nothing to stdout without --print-dir", () => {
+    const { journal, layer } = harness()
+    return Effect.gen(function*() {
+      yield* run(["--name", "my-api", "--runtime", "node", "--pm", "npm"])
+      assert.deepStrictEqual(journal.stdout, [])
+    }).pipe(Effect.provide(layer))
+  })
+
+  it.effect("keeps the human output on stderr under --print-dir, not folded into stdout", () => {
+    // The summary and next steps must still be shown — they are just not the
+    // thing a command substitution captures.
+    const { journal, layer } = harness()
+    return Effect.gen(function*() {
+      yield* run(["--name", "my-api", "--runtime", "node", "--pm", "npm", "--print-dir"])
+      assert.isTrue(
+        journal.logs.some((line) => line.includes("Created my-api")),
+        `the summary line vanished: ${JSON.stringify(journal.logs)}`
+      )
+      assert.strictEqual(journal.stdout.length, 1)
+    }).pipe(Effect.provide(layer))
+  })
+
+  it.effect("prints no path when the scaffold failed", () => {
+    // A path on stdout means "this directory exists and is ready". Printing one
+    // after a failure would make `cd "$(...)"` land somewhere that is not there.
+    const { journal, layer } = harness({ nonEmptyTarget: true })
+    return Effect.gen(function*() {
+      const exit = yield* Effect.exit(
+        run(["--name", "my-api", "--runtime", "node", "--pm", "npm", "--print-dir"])
+      )
+      assert.strictEqual(exit._tag, "Failure")
+      assert.deepStrictEqual(journal.stdout, [])
+    }).pipe(Effect.provide(layer))
+  })
+
+  it.effect("keeps the install output off stdout under --print-dir", () => {
+    // Otherwise npm's progress lands inside the `cd` argument. Asserted here
+    // rather than in PackageManager.test.ts because the question is whether the
+    // flag reaches the installer at all.
+    const { journal, layer } = harness()
+    return Effect.gen(function*() {
+      yield* run(["--name", "my-api", "--runtime", "node", "--pm", "npm", "--print-dir"])
+      assert.deepStrictEqual(journal.installs.map(([, , stdout]) => stdout), ["stderr"])
+    }).pipe(Effect.provide(layer))
+  })
+
+  it.effect("leaves the install output on the terminal without --print-dir", () => {
+    const { journal, layer } = harness()
+    return Effect.gen(function*() {
+      yield* run(["--name", "my-api", "--runtime", "node", "--pm", "npm"])
+      assert.deepStrictEqual(journal.installs.map(([, , stdout]) => stdout), [undefined])
     }).pipe(Effect.provide(layer))
   })
 })
