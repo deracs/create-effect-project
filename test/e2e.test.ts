@@ -13,6 +13,37 @@ const binPath = join(repoRoot, "src", "bin.ts")
 
 const hasBun = spawnSync("bun", ["--version"], { encoding: "utf8" }).status === 0
 
+/** Polls any URL until it answers, for servers that have no /health route. */
+const waitForOk = async (url: string, timeoutMs: number): Promise<Response> => {
+  const deadline = Date.now() + timeoutMs
+  let lastError: unknown
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url)
+      if (response.ok) return response
+      lastError = new Error(`status ${response.status}`)
+    } catch (error) {
+      lastError = error
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  throw new Error(`${url} never became ready: ${String(lastError)}`)
+}
+
+/**
+ * The workspace hoists its binaries to the root, but a package manager is free
+ * to place them beside the app instead, so look in both.
+ */
+const binIn = (projectDir: string, app: string, name: string): string => {
+  const candidates = [
+    join(projectDir, "apps", app, "node_modules", ".bin", name),
+    join(projectDir, "node_modules", ".bin", name)
+  ]
+  const found = candidates.find((candidate) => existsSync(candidate))
+  if (found === undefined) throw new Error(`${name} is not installed: looked in ${candidates.join(", ")}`)
+  return found
+}
+
 const waitForHealth = async (port: number, timeoutMs: number): Promise<Response> => {
   const deadline = Date.now() + timeoutMs
   let lastError: unknown
@@ -168,11 +199,18 @@ describe("http-server template end to end", () => {
 // assumptions hold: there is no `src/` at the root, and `typecheck` and `test`
 // belong to the two apps rather than to the root manifest. Hence its own block.
 describe("fullstack template end to end", () => {
+  const apiPorts: Record<Runtime, number> = { node: 4911, bun: 4912 }
+  const webPorts: Record<Runtime, number> = { node: 4913, bun: 4914 }
+
   for (const variant of variants) {
     const maybe = variant.runtime === "bun" && !hasBun ? it.skip : it
 
-    maybe(`scaffolds a ${variant.runtime} workspace that installs, builds, typechecks and tests`, () => {
+    maybe(`scaffolds a ${variant.runtime} workspace that installs, builds, typechecks, tests and renders`, async () => {
       const { projectDir, workDir } = scaffold({ name: "my-stack", template: "fullstack", variant })
+      const apiPort = apiPorts[variant.runtime]
+      const webPort = webPorts[variant.runtime]
+      let api: ReturnType<typeof spawn> | undefined
+      let web: ReturnType<typeof spawn> | undefined
 
       try {
         const root = JSON.parse(readFileSync(join(projectDir, "package.json"), "utf8"))
@@ -230,7 +268,72 @@ describe("fullstack template end to end", () => {
           `@my-stack/api/api`,
           "the web app does not import the API through its package exports"
         )
+
+        // Everything above proves the workspace compiles and bundles. None of it
+        // proves a page renders: the web app's own test stubs HttpClient, so no
+        // HTML is ever produced and a build that 500s on first request would
+        // still pass. So boot both halves and fetch the page for real.
+        const [apiCmd, apiArgs] = variant.exec("src/index.ts")
+        api = spawn(apiCmd, [...apiArgs], {
+          cwd: join(projectDir, "apps", "api"),
+          env: { ...process.env, PORT: String(apiPort), WEB_ORIGIN: `http://localhost:${webPort}` },
+          stdio: "ignore"
+        })
+        const health = await waitForHealth(apiPort, 60_000)
+        assert.strictEqual(health.status, 204)
+
+        // Seed through the API, so what the page renders can only have come from
+        // the server round trip.
+        const seeded = await fetch(`http://127.0.0.1:${apiPort}/notes`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ title: "rendered-on-the-server", body: "hello" })
+        })
+        assert.strictEqual(seeded.status, 200)
+
+        // `import.meta.env.VITE_API_URL` is baked in at build time, so the build
+        // has to be re-run against this port rather than the 3000 default.
+        const apiUrl = `http://localhost:${apiPort}`
+        const built = spawnSync(binIn(projectDir, "web", "vite"), ["build"], {
+          cwd: join(projectDir, "apps", "web"),
+          env: { ...process.env, VITE_API_URL: apiUrl },
+          encoding: "utf8",
+          timeout: 480_000
+        })
+        assert.strictEqual(built.status, 0, `vite build failed: ${built.stdout}${built.stderr}`)
+
+        // `preview` serves the built SSR server, so this exercises the artefacts
+        // asserted above rather than a dev-mode approximation. It binds IPv6 by
+        // default, hence the explicit --host.
+        web = spawn(binIn(projectDir, "web", "vite"), [
+          "preview",
+          "--port",
+          String(webPort),
+          "--host",
+          "127.0.0.1"
+        ], { cwd: join(projectDir, "apps", "web"), stdio: "ignore" })
+
+        const page = await waitForOk(`http://127.0.0.1:${webPort}/`, 90_000)
+        const html = await page.text()
+
+        // The note reached the markup, so the loader ran on the server and its
+        // result was rendered — not fetched later in the browser.
+        assert.include(
+          html,
+          "rendered-on-the-server",
+          `the seeded note is not in the server-rendered HTML: ${html.slice(0, 400)}`
+        )
+        // And the dehydrated atom rode along, which is what lets the client
+        // hydrate without issuing the request a second time.
+        assert.include(
+          html,
+          "dehydratedAt",
+          "the SSR payload carries no dehydrated atoms, so the client will refetch"
+        )
+        assert.include(html, "AtomHttpApi:notes:list", "the notes atom was not the one dehydrated")
       } finally {
+        api?.kill("SIGTERM")
+        web?.kill("SIGTERM")
         rmSync(workDir, { recursive: true, force: true })
       }
     })
