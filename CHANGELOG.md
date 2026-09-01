@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to `yieldit`. Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+Notable changes to `create-effect-project`. Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 The release workflow reads the section matching the tag it is publishing and
@@ -9,23 +9,20 @@ the form `## [x.y.z] - YYYY-MM-DD`.
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-09-02
-
-The first release under the new name. 0.3.1 was written up below but never
-tagged, so its changes ship here too.
-
 ### Changed
 
-- **Renamed from `create-effect-project` to `yieldit`** — the npm package, the
-  binary and the GitHub repository (now `deracs/yieldit`). The command is
-  `npx yieldit`. `npm create effect-project` no longer applies: that shortcut
-  only works for packages named `create-*`, so use `npx`, `bunx`, `pnpm dlx` or
-  `yarn dlx`. `create-effect-project` stays on npm at 0.3.0, deprecated with a
-  pointer here.
-- npm provenance is on: the published tarball now carries a signed attestation
-  tying it to this repository, this commit and the release workflow. It was off
-  while the repository was private, which is the one thing npm will not generate
-  provenance for.
+- Releases publish with npm provenance: the tarball now carries a signed
+  attestation tying it to this repository, this commit and the release workflow.
+  It was off while the repository was private, which is the one thing npm will
+  not generate provenance for.
+
+### Fixed
+
+- The packaged-install smoke test no longer fails under `npm publish --dry-run`.
+  `prepublishOnly` runs it inside that command, which exports
+  `npm_config_dry_run=true`; every child process inherited it, so the nested
+  `npm pack` wrote no tarball and the script failed on "tarball produced" — a
+  failure about the rehearsal rather than the package.
 
 ## [0.3.1] - 2026-08-31
 

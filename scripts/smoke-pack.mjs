@@ -38,7 +38,7 @@ const run = (cmd, args, options) => {
   return { ...result, output: `${result.stdout ?? ""}${result.stderr ?? ""}` }
 }
 
-const workDir = mkdtempSync(join(tmpdir(), "yieldit-pack-"))
+const workDir = mkdtempSync(join(tmpdir(), "cep-pack-"))
 
 /** Thrown to stop the run early; the failure is already recorded in `failures`. */
 class Abort extends Error {}

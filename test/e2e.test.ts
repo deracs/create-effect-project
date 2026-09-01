@@ -87,7 +87,7 @@ const scaffold = (options: {
   readonly variant: Variant
   readonly extraFlags?: ReadonlyArray<string>
 }) => {
-  const workDir = mkdtempSync(join(tmpdir(), `yieldit-${options.template}-${options.variant.runtime}-`))
+  const workDir = mkdtempSync(join(tmpdir(), `cea-${options.template}-${options.variant.runtime}-`))
   const result = spawnSync(
     process.execPath,
     [
@@ -559,7 +559,7 @@ describe("--print-dir end to end", () => {
   it("puts the project path on stdout and everything else on stderr", () => {
     // `realpathSync` because on macOS `tmpdir()` is a symlink (/var -> /private/var)
     // and the CLI resolves against its actual working directory, which is right.
-    const workDir = realpathSync(mkdtempSync(join(tmpdir(), "yieldit-print-dir-")))
+    const workDir = realpathSync(mkdtempSync(join(tmpdir(), "cea-print-dir-")))
 
     try {
       // Installing on purpose: the package manager writes to stdout by default,

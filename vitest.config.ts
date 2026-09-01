@@ -2,8 +2,8 @@ import { defineConfig } from "vitest/config"
 
 // `exclude` still filters an explicitly-named file passed on the CLI, so `vitest run
 // test/e2e.test.ts` alone would report "No test files found". The test:e2e script sets
-// YIELDIT_E2E=1 to swap the config: include only the e2e file, and stop excluding it.
-const e2e = process.env.YIELDIT_E2E === "1"
+// CEA_E2E=1 to swap the config: include only the e2e file, and stop excluding it.
+const e2e = process.env.CEA_E2E === "1"
 
 export default defineConfig({
   test: {

@@ -26,8 +26,8 @@ jobs:
 
     # `id-token: write` is what npm provenance needs: npm exchanges that OIDC
     # token for a signed attestation tying the tarball to this commit and this
-    # workflow. It only works for a public source repository, which this became
-    # before 0.4.0 — before that the flag was off for exactly that reason.
+    # workflow. npm only generates it for a public source repository, which is
+    # why the flag was off while this one was private.
     permissions:
       # `write` so the job can create the GitHub Release for the tag it just
       # published.

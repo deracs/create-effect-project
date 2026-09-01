@@ -1,25 +1,25 @@
-# yieldit
+# create-effect-project
 
-[![npm](https://img.shields.io/npm/v/yieldit)](https://www.npmjs.com/package/yieldit)
-[![license](https://img.shields.io/npm/l/yieldit)](LICENSE)
+[![npm](https://img.shields.io/npm/v/create-effect-project)](https://www.npmjs.com/package/create-effect-project)
+[![license](https://img.shields.io/npm/l/create-effect-project)](LICENSE)
 
 Scaffolds an [Effect](https://effect.website) v4 project on Node or Bun — an HttpApi server, a
 full-stack app, a plain program, a command-line app, an AI agent with typed tools, or a Cloudflare
 Worker.
 
 ```bash
-npx yieldit
+npx create-effect-project
 ```
 
 That prompts for everything. Pass flags instead and nothing prompts, so the same command works in
 a terminal and in CI:
 
 ```bash
-npx yieldit --name my-api  --template http-server --runtime bun
-npx yieldit --name my-app  --template basic --runtime node --no-otel --no-lint
+npx create-effect-project --name my-api  --template http-server --runtime bun
+npx create-effect-project --name my-app  --template basic --runtime node --no-otel --no-lint
 ```
 
-`bunx yieldit`, `pnpm dlx yieldit` and `yarn dlx yieldit` work the same way.
+`npm create effect-project` and `yarn create effect-project` work too.
 
 ### Landing in the new project
 
@@ -28,7 +28,7 @@ A child process cannot change your shell's working directory, so the CLI cannot 
 manager's install output — to stderr, which is enough for the shell to do it:
 
 ```bash
-cd "$(npx yieldit --name my-app --template cli --runtime node --print-dir)"
+cd "$(npx create-effect-project --name my-app --template cli --runtime node --print-dir)"
 ```
 
 The same flag is what makes the tool scriptable: a caller gets a machine-readable path instead of

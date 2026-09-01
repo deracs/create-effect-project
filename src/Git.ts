@@ -3,7 +3,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 
 export class Git extends Context.Service<Git, {
   init(cwd: string): Effect.Effect<void>
-}>()("yieldit/Git") {
+}>()("create-effect-project/Git") {
   static readonly layer = Layer.effect(
     Git,
     Effect.gen(function*() {
