@@ -12,6 +12,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+// `npm publish --dry-run` exports npm_config_dry_run=true, and every child
+// process inherits it — which would make the `npm pack` below write no tarball
+// and the consumer `npm install` install nothing, failing this script for a
+// reason that has nothing to do with the package. This script always does the
+// real thing, so drop the flag before spawning anything.
+delete process.env.npm_config_dry_run
+
 const repoRoot = fileURLToPath(new URL("..", import.meta.url))
 const manifest = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"))
 const binName = Object.keys(manifest.bin)[0]
