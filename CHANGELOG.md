@@ -22,6 +22,10 @@ tagged, so its changes ship here too.
   only works for packages named `create-*`, so use `npx`, `bunx`, `pnpm dlx` or
   `yarn dlx`. `create-effect-project` stays on npm at 0.3.0, deprecated with a
   pointer here.
+- npm provenance is on: the published tarball now carries a signed attestation
+  tying it to this repository, this commit and the release workflow. It was off
+  while the repository was private, which is the one thing npm will not generate
+  provenance for.
 
 ## [0.3.1] - 2026-08-31
 
