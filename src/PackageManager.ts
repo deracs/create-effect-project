@@ -56,7 +56,7 @@ export class PackageManager extends Context.Service<PackageManager, {
     manager: Name,
     options?: InstallOptions
   ): Effect.Effect<void, InstallFailed | PackageManagerMissing>
-}>()("create-effect-project/PackageManager") {
+}>()("yieldit/PackageManager") {
   static readonly layer = Layer.effect(
     PackageManager,
     Effect.gen(function*() {

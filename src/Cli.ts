@@ -122,7 +122,7 @@ const git = Flag.boolean("git").pipe(
  * CLI cannot cd anywhere for you. What it can do is name the directory on
  * stdout and let the shell do it:
  *
- *     cd "$(npx create-effect-project --name my-app --template cli --print-dir)"
+ *     cd "$(npx yieldit --name my-app --template cli --print-dir)"
  *
  * Effect's default logger writes to stdout, so the flag also moves every log
  * line to stderr, and tells the package manager to send its own output there
@@ -136,7 +136,7 @@ const printDir = Flag.boolean("print-dir").pipe(
 )
 
 export const root = Command.make(
-  "create-effect-project",
+  "yieldit",
   { name, template, runtime, packageManager, otel, lint, slop, install, git, printDir },
   Effect.fn(function*(input) {
     yield* Effect.gen(function*() {
@@ -226,45 +226,45 @@ export const root = Command.make(
     "a CLI, an AI agent with typed tools, or a Cloudflare Worker"
   ),
   Command.withExamples([
-    { command: "create-effect-project", description: "Prompt for a name, template, runtime and package manager" },
+    { command: "yieldit", description: "Prompt for a name, template, runtime and package manager" },
     {
-      command: "create-effect-project --name my-api --template http-server --runtime bun",
+      command: "yieldit --name my-api --template http-server --runtime bun",
       description: "Scaffold an HttpApi server and client on bun"
     },
     {
-      command: "create-effect-project --name my-app --template fullstack --runtime bun",
+      command: "yieldit --name my-app --template fullstack --runtime bun",
       description: "Scaffold an HttpApi server and a server-rendered React UI that shares its types"
     },
     {
-      command: "create-effect-project --name my-app --template basic --runtime node --pm pnpm",
+      command: "yieldit --name my-app --template basic --runtime node --pm pnpm",
       description: "Scaffold a plain program and install with pnpm, without prompting"
     },
     {
-      command: "create-effect-project --name my-app --template basic --no-otel --no-lint",
+      command: "yieldit --name my-app --template basic --no-otel --no-lint",
       description: "Scaffold without telemetry or linting"
     },
     {
-      command: "create-effect-project --name my-api --template http-server --slop",
+      command: "yieldit --name my-api --template http-server --slop",
       description: "Scaffold with the stricter anti-slop oxlint rules"
     },
     {
-      command: "create-effect-project --name my-notes --template cli --runtime node",
+      command: "yieldit --name my-notes --template cli --runtime node",
       description: "Scaffold a command-line app with subcommands, prompts and typed exit codes"
     },
     {
-      command: "create-effect-project --name my-agent --template ai",
+      command: "yieldit --name my-agent --template ai",
       description: "Scaffold a language model with the Notes service exposed to it as typed tools"
     },
     {
-      command: "create-effect-project --name my-api --template alchemy-http",
+      command: "yieldit --name my-api --template alchemy-http",
       description: "Scaffold the same HttpApi as a Cloudflare Worker deployed with Alchemy"
     },
     {
-      command: "create-effect-project --name my-api --template alchemy-rpc",
+      command: "yieldit --name my-api --template alchemy-rpc",
       description: "Scaffold a typed RPC service on a Cloudflare Worker"
     },
     {
-      command: 'cd "$(create-effect-project --name my-app --template cli --print-dir)"',
+      command: 'cd "$(yieldit --name my-app --template cli --print-dir)"',
       description: "Scaffold, then land in the new project — stdout carries the path and nothing else"
     }
   ])

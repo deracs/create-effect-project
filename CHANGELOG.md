@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to `create-effect-project`. Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+Notable changes to `yieldit`. Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 The release workflow reads the section matching the tag it is publishing and
@@ -8,6 +8,14 @@ uses it as the GitHub Release notes, so a new version needs its heading here in
 the form `## [x.y.z] - YYYY-MM-DD`.
 
 ## [Unreleased]
+
+### Changed
+
+- Renamed from `create-effect-project` to `yieldit`: the npm package, the binary
+  and the GitHub repository. The command is now `npx yieldit`; `npm create
+  effect-project` no longer applies, since the name no longer follows the
+  `create-*` convention. The last published version under the old
+  name, 0.3.0, stays on npm and is deprecated with a pointer to `yieldit`.
 
 ## [0.3.1] - 2026-08-31
 
