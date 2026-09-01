@@ -9,13 +9,19 @@ the form `## [x.y.z] - YYYY-MM-DD`.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-02
+
+The first release under the new name. 0.3.1 was written up below but never
+tagged, so its changes ship here too.
+
 ### Changed
 
-- Renamed from `create-effect-project` to `yieldit`: the npm package, the binary
-  and the GitHub repository. The command is now `npx yieldit`; `npm create
-  effect-project` no longer applies, since the name no longer follows the
-  `create-*` convention. The last published version under the old
-  name, 0.3.0, stays on npm and is deprecated with a pointer to `yieldit`.
+- **Renamed from `create-effect-project` to `yieldit`** — the npm package, the
+  binary and the GitHub repository (now `deracs/yieldit`). The command is
+  `npx yieldit`. `npm create effect-project` no longer applies: that shortcut
+  only works for packages named `create-*`, so use `npx`, `bunx`, `pnpm dlx` or
+  `yarn dlx`. `create-effect-project` stays on npm at 0.3.0, deprecated with a
+  pointer here.
 
 ## [0.3.1] - 2026-08-31
 
